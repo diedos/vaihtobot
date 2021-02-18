@@ -47,12 +47,13 @@ def start(update: Update, context: CallbackContext) -> None:
         return
 
     else:
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Tervemenoa avaruusmatkalle!\n\nLennonjohtoon saat yhteyden lähettämällä tähän keskusteluun tekstiä, kuvia tai videoita.")
-
+        context.bot.send_message(chat_id=update.effective_chat.id, text="Tervemenoa avaruusmatkalle!\n\nLennonjohtoon saat yhteyden lähettämällä tähän keskusteluun esimerkiksi tekstiä, kuvia tai videoita.")
+        c = db.cursor()
         sql = "INSERT INTO `users` (id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username=%s"
         val = (update.message.from_user.id, update.message.from_user.username, update.message.from_user.username)
         c.execute(sql, val)
         db.commit()
+        c.close()
 
         return
 
@@ -133,7 +134,7 @@ def message(update: Update, context: CallbackContext) -> None:
 
     if update.message.photo:
         args = update.message.caption.split(" ")
-        if args[0][0] == "/":
+        if args[0] == "/message":
             if (args[1][0] == "@"):
                 username = args[1][1:]
             else: 
@@ -146,10 +147,21 @@ def message(update: Update, context: CallbackContext) -> None:
             else:
                 context.bot.send_photo(chat_id=userId, photo=update.message.photo[0].file_id, caption=" ".join(args[2:]))
             return
+        if args[0] == "/broadcast":
+            c = db.cursor()
+            sql = "SELECT id FROM users"
+            c.execute(sql)
+            users = c.fetchall()
+            db.commit()
+            c.close()
+
+            for user in users:
+                context.bot.send_photo(chat_id=user[0], photo=update.message.photo[0].file_id, caption=" ".join(args[1:]))
+            return
 
     if update.message.video:
         args = update.message.caption.split(" ")
-        if args[0][0] == "/":
+        if args[0] == "/message":
             if (args[1][0] == "@"):
                 username = args[1][1:]
             else: 
@@ -162,25 +174,36 @@ def message(update: Update, context: CallbackContext) -> None:
             else:
                 context.bot.send_video(chat_id=userId, video=update.message.video.file_id, caption=" ".join(args[2:]))
             return
+        if args[0] == "/broadcast":
+            c = db.cursor()
+            sql = "SELECT id FROM users"
+            c.execute(sql)
+            users = c.fetchall()
+            db.commit()
+            c.close()
+
+            for user in users:
+                context.bot.send_video(chat_id=user[0], video=update.message.video.file_id, caption=" ".join(args[1:]))
+            return
 
     context.bot.send_message(chat_id=TELEGRAM_ADMIN_GROUP_ID, text="Lähetä viesti yhdelle käyttäjälle:\n/message <nick> <viesti>")
     return
 
 
 def broadcast(update: Update, context: CallbackContext) -> None:
-    if not context.args:
-        context.bot.send_message(chat_id=TELEGRAM_ADMIN_GROUP_ID, text="Lähetä viesti kaikille:\n/broadcast <viesti>")
-        return
-    
-    c = db.cursor()
-    sql = "SELECT id FROM users"
-    c.execute(sql)
-    users = c.fetchall()
-    db.commit()
-    c.close()
+    if context.args:
+        c = db.cursor()
+        sql = "SELECT id FROM users"
+        c.execute(sql)
+        users = c.fetchall()
+        db.commit()
+        c.close()
 
-    for user in users:
-        context.bot.send_message(chat_id=user[0], text=" ".join(context.args[0:]))
+        for user in users:
+            context.bot.send_message(chat_id=user[0], text=" ".join(context.args[0:]))
+        return
+        
+    context.bot.send_message(chat_id=TELEGRAM_ADMIN_GROUP_ID, text="Lähetä viesti kaikille:\n/broadcast <viesti>")
     return
 
 
